@@ -11,15 +11,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # -----------------------------
-# Page configuration
+# Page config
 # -----------------------------
-st.set_page_config(
-    page_title="Movie Recommendation System",
-    layout="wide"
-)
+st.set_page_config(page_title="Movie Recommendation System", layout="wide")
 
 st.title("🎬 Personalized Movie Recommendation System")
-st.write("Content-based recommendation using **TF-IDF** and **Cosine Similarity**")
+st.write("Content-based recommendation using TF-IDF and Cosine Similarity")
 
 # -----------------------------
 # Download NLTK resources
@@ -36,8 +33,7 @@ download_nltk()
 # -----------------------------
 @st.cache_data
 def load_data():
-    tmdb_movies_df = pd.read_csv("Downloads/Movies Rating/tmdb_5000_movies.csv")
-    return tmdb_movies_df
+    return pd.read_csv("data/tmdb_5000_movies.csv")
 
 data = load_data()
 
@@ -62,10 +58,7 @@ data['clean_text'] = data['overview'].fillna("").apply(preprocess_text)
 # -----------------------------
 @st.cache_resource
 def build_tfidf(corpus):
-    vectorizer = TfidfVectorizer(
-        max_features=5000,
-        ngram_range=(1, 2)
-    )
+    vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1, 2))
     tfidf_matrix = vectorizer.fit_transform(corpus)
     return vectorizer, tfidf_matrix
 
@@ -84,43 +77,31 @@ user_input = st.text_input(
 top_n = st.slider("Number of recommendations", 3, 10, 5)
 
 # -----------------------------
-# Recommendation logic
+# Recommendation
 # -----------------------------
-if st.button("Get Recommendations") and user_input.strip() != "":
-    user_input_clean = preprocess_text(user_input)
-    user_vector = vectorizer.transform([user_input_clean])
-
+if st.button("Get Recommendations") and user_input.strip():
+    user_vector = vectorizer.transform([preprocess_text(user_input)])
     similarity_scores = cosine_similarity(user_vector, tfidf_matrix)
 
     top_indices = np.argsort(similarity_scores[0])[::-1][:top_n]
 
     recommendations = pd.DataFrame({
-        "Movie Title": data.loc[top_indices, 'title'].values,
+        "Movie Title": data.loc[top_indices, "title"].values,
         "Similarity Score": similarity_scores[0][top_indices]
     }).sort_values(by="Similarity Score", ascending=False)
 
-    # -----------------------------
-    # Display table
-    # -----------------------------
     st.subheader("📋 Recommended Movies")
     st.dataframe(recommendations, use_container_width=True)
 
-    # -----------------------------
-    # Display bar chart
-    # -----------------------------
-    st.subheader("📊 Similarity Score Visualization")
-
+    st.subheader("📊 Similarity Scores")
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.barh(
         recommendations["Movie Title"],
         recommendations["Similarity Score"]
     )
-    ax.set_xlabel("Cosine Similarity Score")
-    ax.set_ylabel("Movies")
-    ax.set_title("Top Movie Recommendations")
     ax.invert_yaxis()
-
+    ax.set_xlabel("Cosine Similarity")
     st.pyplot(fig)
 
 else:
-    st.info("👆 Enter your preferences and click **Get Recommendations**")
+    st.info("Enter your preferences and click **Get Recommendations**")
