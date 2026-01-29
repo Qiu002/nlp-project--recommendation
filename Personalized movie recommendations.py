@@ -29,7 +29,7 @@ def download_nltk():
 download_nltk()
 
 # -----------------------------
-# Load dataset (with manual upload)
+# Load dataset (manual upload)
 # -----------------------------
 @st.cache_data
 def load_data(uploaded_file):
