@@ -24,8 +24,12 @@ st.write("Content-based recommendation using **TF-IDF** and **Cosine Similarity*
 # -----------------------------
 # Download NLTK resources
 # -----------------------------
-nltk.download('stopwords')
-nltk.download('wordnet')
+@st.cache_resource
+def download_nltk():
+    nltk.download('stopwords')
+    nltk.download('wordnet')
+
+download_nltk()
 
 # -----------------------------
 # Load dataset
