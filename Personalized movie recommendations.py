@@ -4,7 +4,6 @@ import numpy as np
 import re
 import nltk
 import matplotlib.pyplot as plt
-import requests
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -12,11 +11,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 # -----------------------------
-# CONFIG
+# Page config
 # -----------------------------
-TMDB_API_KEY = "YOUR_TMDB_API_KEY_HERE"
-
 st.set_page_config(page_title="Movie Recommendation System", layout="wide")
+
 st.title("🎬 Personalized Movie Recommendation System")
 st.write("Content-based recommendation using TF-IDF and Cosine Similarity")
 
@@ -31,7 +29,7 @@ def download_nltk():
 download_nltk()
 
 # -----------------------------
-# Load dataset
+# Load dataset (with manual upload)
 # -----------------------------
 @st.cache_data
 def load_data(uploaded_file):
@@ -41,11 +39,14 @@ def load_data(uploaded_file):
         st.warning("Please upload the CSV file to proceed.")
         return None
 
-uploaded_file = st.file_uploader("Upload your movie dataset CSV", type=["csv"])
+uploaded_file = st.file_uploader(
+    "Upload your movie dataset CSV",
+    type=["csv"]
+)
+
 data = load_data(uploaded_file)
 
 if data is not None:
-
     # -----------------------------
     # Text preprocessing
     # -----------------------------
@@ -62,7 +63,7 @@ if data is not None:
     data['clean_text'] = data['overview'].fillna("").apply(preprocess_text)
 
     # -----------------------------
-    # TF-IDF
+    # TF-IDF Vectorization
     # -----------------------------
     @st.cache_resource
     def build_tfidf(corpus):
@@ -73,30 +74,19 @@ if data is not None:
     vectorizer, tfidf_matrix = build_tfidf(data['clean_text'])
 
     # -----------------------------
-    # USER INPUT
+    # User input
     # -----------------------------
     st.subheader("🔍 Enter Your Movie Preferences")
 
-    user_input = st.text_input("Describe the type of movie you like:",
-                               placeholder="e.g. action sci-fi space adventure")
+    user_input = st.text_input(
+        "Describe the type of movie you like:",
+        placeholder="e.g. action sci-fi space adventure"
+    )
 
     top_n = st.slider("Number of recommendations", 3, 10, 5)
 
     # -----------------------------
-    # POSTER FUNCTION
-    # -----------------------------
-    def get_poster(movie_id):
-        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={TMDB_API_KEY}"
-        r = requests.get(url)
-        if r.status_code == 200:
-            data = r.json()
-            poster_path = data.get("poster_path")
-            if poster_path:
-                return "https://image.tmdb.org/t/p/w500" + poster_path
-        return None
-
-    # -----------------------------
-    # RECOMMENDATION
+    # Recommendation
     # -----------------------------
     if st.button("Get Recommendations") and user_input.strip():
         user_vector = vectorizer.transform([preprocess_text(user_input)])
@@ -104,44 +94,23 @@ if data is not None:
 
         top_indices = np.argsort(similarity_scores[0])[::-1][:top_n]
 
-        recommendations = data.loc[top_indices].copy()
-        recommendations["Similarity Score"] = similarity_scores[0][top_indices]
-        recommendations = recommendations.sort_values(by="Similarity Score", ascending=False)
+        recommendations = pd.DataFrame({
+            "Movie Title": data.loc[top_indices, "title"].values,
+            "Similarity Score": similarity_scores[0][top_indices]
+        }).sort_values(by="Similarity Score", ascending=False)
 
         st.subheader("📋 Recommended Movies")
+        st.dataframe(recommendations, use_container_width=True)
 
-        # 🔹 Selectbox
-        selected_movie = st.selectbox("🎯 Select a movie to view details:",
-                                      recommendations["title"])
-
-        selected_row = recommendations[recommendations["title"] == selected_movie].iloc[0]
-
-        # 🔹 Poster
-        poster_url = get_poster(selected_row["id"])
-        if poster_url:
-            st.image(poster_url, width=220)
-
-        st.markdown(f"### 🎬 {selected_row['title']}")
-        st.write(f"**Genre:** {selected_row['genre']}")
-        st.write(f"**Overview:** {selected_row['overview']}")
-        st.write(f"**Similarity Score:** {selected_row['Similarity Score']:.3f}")
-
-        # 🔹 WHY THIS MOVIE
-        feature_names = vectorizer.get_feature_names_out()
-        user_vec = user_vector.toarray()[0]
-        top_terms = [feature_names[i] for i in user_vec.argsort()[-6:][::-1]]
-
-        st.info(f"🧠 Why this movie? Top matching keywords: **{', '.join(top_terms)}**")
-
-        # 🔹 Show all recommendations
-        st.subheader("📌 All Recommendations")
-
-        for _, row in recommendations.iterrows():
-            st.markdown(f"### 🎞 {row['title']}")
-            st.write(f"**Genre:** {row['genre']}")
-            st.write(row["overview"])
-            st.write(f"Similarity Score: `{row['Similarity Score']:.3f}`")
-            st.divider()
+        st.subheader("📊 Similarity Scores")
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.barh(
+            recommendations["Movie Title"],
+            recommendations["Similarity Score"]
+        )
+        ax.invert_yaxis()
+        ax.set_xlabel("Cosine Similarity")
+        st.pyplot(fig)
 
     else:
         st.info("Enter your preferences and click **Get Recommendations**")
